@@ -19,7 +19,7 @@ def get_local_ipv4_address():
     return temp_sock.getsockname()[0]
 
 # Define constants
-MAGIC_COOKIE = 0xabcddcba
+MAGIC_COOKIE = 0xabc #0xabcddcba
 MESSAGE_TYPE_OFFER = 0x2
 LOCAL_IP = get_local_ipv4_address()
 server_name = pad_server_name("Lucky Bunnies")
@@ -217,10 +217,13 @@ def tcp_server(host, port):
             if len(pid_to_name) == 0:
                 send_to_all(client_sockets_og, "Game is tied !")
                 print("No players left in the game.\nGame over, sending out offer requests...\n\n")
+                time.sleep(1)
 
             elif len(pid_to_name) > 1:
                 print("Game is tied !\nLooking for new players... ")
                 send_to_all(client_sockets_og, "Game is tied !")
+                time.sleep(1)
+
 
             elif len(pid_to_name) == 1:
                 name = next(iter(pid_to_name.values()))
@@ -229,6 +232,7 @@ def tcp_server(host, port):
                 send_to_all(client_sockets_og, f'Game over!\nCongratulations to the winner: {name}\n')
                 time.sleep(2)
                 print("Game over, sending out offer requests...\n\n")
+                time.sleep(1)
 
     except KeyboardInterrupt:
         server_socket.close()

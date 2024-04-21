@@ -1,3 +1,4 @@
+import signal
 import socket
 import struct
 import sys
@@ -38,7 +39,7 @@ class Client:
                     address = address[0]
                     magic_cookie, message_type, server_name, server_port = struct.unpack('!IB32sH', data)
                     server_name = server_name.rstrip(b'\0').decode('utf-8')
-                    if magic_cookie != 0xabcddcba or message_type != 0x2:
+                    if magic_cookie != 0xabc or message_type != 0x2:
                         continue
                     else:
                         print(f"Received offer from server '{server_name}' at address {address}, attempting to connect...")
@@ -50,34 +51,24 @@ class Client:
             self.disconnect = True
             print('Disconnecting.... Goodbye!')
 
+    def signal_handler(self,signum, frame):
+        raise TimeoutError("Time is up! You did not answer in time.")
+
+    def get_input(self, timeout=10):
+        # Set the signal handler to raise TimeoutError after the timeout
+        signal.signal(signal.SIGALRM, self.signal_handler)
+        signal.alarm(timeout)  # Set the alarm signal after timeout seconds
+        try:
+            answer = input("Please type in your answer:\n")
+            signal.alarm(0)  # Cancel the alarm
+            return answer
+        except TimeoutError as e:
+            print(e)
+            return 'NONE'
 
     def answering_questions(self, client_socket):
-        # Create an event to signal when input is received
-        input_event = threading.Event()
-        answer = 'NONE'
-
-        # Function to get input from user
-        def get_input():
-            nonlocal answer
-            answer = input("Please type in your answer:")
-            input_event.set()  # Signal that input has been received
-            return
-
-        # Start a new thread to get input
-        input_thread = threading.Thread(target=get_input)
-        input_thread.start()
-
-        # Wait for the input thread to finish or timeout
-        input_thread.join(10)
-
-        # If user input is provided, return it
-        if input_event.is_set():
-            client_socket.sendall(answer.encode())
-        # If timeout occurs, return the default value
-        else:
-            print("Time is up! You did not answer in time.")
-            client_socket.sendall(answer.encode())
-
+        answer = self.get_input()
+        client_socket.sendall(answer.encode())
 
     def tcp_client(self, host, port, isBot = False):
         try:
