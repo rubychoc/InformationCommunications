@@ -1,11 +1,107 @@
 import concurrent.futures
+import copy
+import random
 import socket
 import struct
 import sys
 import time
 import ipaddress
 import threading
+import pygame
+
+from colorama import Fore
+
 from Bot import Bot
+
+from openpyxl import load_workbook
+
+
+def play_sound(sound_file):
+    pygame.mixer.init()
+    sound = pygame.mixer.Sound(sound_file)
+    sound.play()
+
+def update_excel(filename, name):
+    """
+    Update the Excel file by incrementing the wins count for the specified name.
+
+    Args:
+    - filename: The filename of the Excel file.
+    - name: The name of the winner.
+    """
+    try:
+        # Load the workbook with write access
+        wb = load_workbook(filename, read_only=False)
+        ws = wb.active
+
+        # Check if the name already exists
+        name_exists = False
+
+        for row in ws.iter_rows(min_row=1, max_col=1, max_row=ws.max_row, values_only=True):
+            if row[0] == name:
+                name_exists = True
+
+                break
+
+        if name_exists:
+            i = 1
+            for row in ws.iter_rows(values_only=True):
+                if row[0] == name:
+                    new_score = row[1] + 1
+                    ws.cell(row=i, column=2, value=new_score)
+                    break
+                i += 1
+
+            # Save the changes to the Excel file
+            wb.save(filename)
+        else:
+            # Add a new row for the name
+            ws.append([name, 1])
+
+        # Save the workbook
+        wb.save(filename)
+
+    except Exception as e:
+        pass
+
+
+def get_top_three_players(filename):
+    """
+    Retrieve the top three players with the most wins from the Excel file.
+
+    Args:
+    - filename: The filename of the Excel file.
+
+    Returns:
+    A list of tuples containing the top three players with their names and wins.
+    """
+    try:
+        # Load the workbook
+        wb = load_workbook(filename, read_only=True)
+        ws = wb.active
+
+        # Create a dictionary to store player names and wins
+        players = {}
+
+        # Read data from the Excel file
+        for row in ws.iter_rows(min_row=2, max_col=2, max_row=ws.max_row, values_only=True):
+            name, wins = row
+            if name in players:
+                players[name] += wins
+            else:
+                players[name] = wins
+
+        # Sort players by wins in descending order
+        sorted_players = sorted(players.items(), key=lambda x: x[1], reverse=True)
+
+        # Get the top three players
+        top_three = sorted_players[:3]
+
+        return top_three
+
+    except Exception as e:
+        pass
+
 
 # Function to pad server name to 32 characters
 def pad_server_name(server_name):
@@ -18,12 +114,20 @@ def get_local_ipv4_address():
     temp_sock.connect(("8.8.8.8", 80))
     return temp_sock.getsockname()[0]
 
+def find_available_port():
+    # Create a socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        # Bind the socket to a random port
+        s.bind(('', 0))
+        return s.getsockname()[1]
+
+
 # Define constants
-MAGIC_COOKIE = 0xabc #0xabcddcba
+MAGIC_COOKIE = 0xabcddcba
 MESSAGE_TYPE_OFFER = 0x2
 LOCAL_IP = get_local_ipv4_address()
 server_name = pad_server_name("Lucky Bunnies")
-
+available_port = find_available_port()
 
 def get_local_broadcast_ip():
     # Get the local IP address
@@ -38,7 +142,7 @@ def get_local_broadcast_ip():
 def udp_broadcast():
     BROADCAST_IP = get_local_broadcast_ip()
     BROADCAST_PORT = 13117
-    server_port = 1710
+    server_port = available_port
     packed_data = struct.pack('!IB32sH', MAGIC_COOKIE, MESSAGE_TYPE_OFFER, server_name.encode('utf-8'), server_port)
 
     # Create a UDP socket
@@ -56,20 +160,69 @@ def udp_broadcast():
         print('Stopping broadcast')
         # Close the socket
         sock.close()
+    except OSError:
+        sock.close()
 
+#
+#
+# questions = {
+#     "Aston Villa's current manager is Pep Guardiola": True,
+#     "Aston Villa's home stadium is Villa Park": True,
+#     "Aston Villa has won the UEFA Champions League": False,
+# }
 
 questions = {
-    "Aston Villa's current manager is Pep Guardiola": True,
-    "Aston Villa's home stadium is Villa Park": True,
-    "Aston Villa has won the UEFA Champions League": False,
+    "The capital city of Japan is Tokyo": True,
+    "The Amazon River is the longest river in the world": False,
+    "The Great Wall of China is the longest wall in the world": True,
+    "The Sahara Desert is the largest hot desert in the world": True,
+    "The tallest mountain in the world is Mount Everest": True,
+    "The largest country in the world by land area is Russia": True,
+    "The city of Rome is located in France": False,
+    "The Nile River is the longest river in the world": False,
+    "The Eiffel Tower is located in London": False,
+    "The Dead Sea is the saltiest body of water in the world": True,
+    "The Statue of Liberty was a gift from France to the United States": True,
+    "The Sydney Opera House is located in Australia": True,
+    "The capital city of Canada is Ottawa": True,
+    "The Sahara Desert is located in South America": False,
+    "The largest ocean in the world is the Pacific Ocean": True,
+    "The city of Moscow is the capital of Russia": True,
+    "The Great Barrier Reef is located in the Indian Ocean": False,
+    "The city of Berlin is the capital of Germany": True,
+    "The Panama Canal connects the Pacific Ocean to the Atlantic Ocean": True,
+    "The highest waterfall in the world is Angel Falls": True,
 }
+
+bot_names = [
+    "BOT_columbus",
+    "BOT_magellan",
+    "BOT_cook",
+    "BOT_vespucci",
+    "BOT_hudson",
+    "BOT_cabot",
+    "BOT_drake",
+    "BOT_marco_polo",
+    "BOT_champlain",
+    "BOT_cortes",
+    "BOT_pizarro",
+    "BOT_cartier",
+    "BOT_la_salle",
+    "BOT_park",
+    "BOT_livingstone",
+    "BOT_vasco_da_gama",
+    "BOT_pedro_alvares_cabral",
+    "BOT_zheng_he",
+    "BOT_meriwether_lewis",
+    "BOT_william_clark"
+]
 
 acceptable_answers = {'0': 'F', '1': 'T', 'Y': 'T', 'N': 'F', 'T': 'T', 'F': 'F', 'NONE': None}
 disconnected_clients = {}
 pid_to_name = {}
 
 
-def tcp_server(host, port):
+def tcp_server(host, port, fill_bots=True, add_bots=0):
     global pid_to_name
     global disconnected_clients
     welcome_msg = "Please wait for other players to join...\n"
@@ -84,8 +237,10 @@ def tcp_server(host, port):
             players[client_id] = (player_name.decode())
         except OSError:
             global disconnected_clients
-            disconnected_clients[client_id] = players[client_id]
-
+            try:
+                disconnected_clients[client_id] = players[client_id]
+            except Exception:
+                pass
 
     # Create a TCP/IP socket
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -140,7 +295,7 @@ def tcp_server(host, port):
                     break
 
             client_sockets = dict(client_sockets_og)
-            # print(welcome_msg)
+            # client_sockets = copy.deepcopy(client_sockets_og)
 
             time.sleep(1)
 
@@ -149,15 +304,31 @@ def tcp_server(host, port):
             if len(client_sockets) == 0:
                 print('No players connected, waiting for new players...\n\n')
                 continue
-            elif len(client_sockets) == 1:
+            elif len(client_sockets) < 4 and fill_bots:
                 print('Not enough players. Adding bots to the game.')
                 send_to_all(client_sockets, 'Not enough players. Adding bots to the game.')
-                add_bots = []
                 i = len(client_sockets)
                 for j in range(4 - len(client_sockets)):
                     i += 1
+                    add_bots -= 1
                     server_socket.listen()
-                    bot_thread = threading.Thread(target=Bot(f'RandomName{i}', address=LOCAL_IP, server_port=1710, isBot=True).run)
+                    name = random.choice(bot_names)
+                    bot_thread = threading.Thread(target=Bot(name, address=LOCAL_IP, server_port=available_port, isBot=True).run)
+                    bot_thread.start()
+                    client_socket, client_address = server_socket.accept()
+                    client_handler = threading.Thread(target=handle_client, args=(i, client_socket, players))
+                    client_sockets_og[i] = client_socket
+                    client_sockets[i] = client_socket
+                    client_handler.start()
+                    client_handler.join()
+
+            if add_bots > 0:
+                i = len(client_sockets)
+                for j in range(add_bots):
+                    i += 1
+                    server_socket.listen()
+                    name = random.choice(bot_names)
+                    bot_thread = threading.Thread(target=Bot(name, address=LOCAL_IP, server_port=available_port, isBot=True).run)
                     bot_thread.start()
                     client_socket, client_address = server_socket.accept()
                     client_handler = threading.Thread(target=handle_client, args=(i, client_socket, players))
@@ -169,17 +340,16 @@ def tcp_server(host, port):
             time.sleep(1)
             check_if_disconnected(client_sockets, client_sockets_og, players)
 
-
-            print('Welcome to LuckyBunnies Server, where we are answering trivia questions about Aston Villa FC.\n')
-            send_to_all(client_sockets, 'Welcome to LuckyBunnies Server, where we are answering trivia questions about Aston Villa FC.\n')
+            print('Welcome to LuckyBunnies Server, where we are answering trivia questions about geography!\n')
+            send_to_all(client_sockets,'Welcome to LuckyBunnies Server, where we are answering trivia questions about geography!\n')
             print("Loading game...\n")
-            send_to_all(client_sockets, "Loading game...")
+            send_to_all(client_sockets,"Loading game...")
             time.sleep(1)
             message = ""
             pid_to_name = dict(players)
 
             for i, key in enumerate(pid_to_name.keys()):
-                message += f"Player {i+1}: {pid_to_name[key]}\n"
+                message += f"Player {i + 1}: {pid_to_name[key]}\n"
             message += "===============\n"
             print(message)
             curr_threads = []
@@ -193,7 +363,8 @@ def tcp_server(host, port):
             for question in questions:
                 for dc in disconnected_clients:
                     print(f'{disconnected_clients[dc]} has disconnected from the game.')
-                    send_to_all(client_sockets, f'{disconnected_clients[dc]} has disconnected from the game.\n')
+                    send_to_all(client_sockets,
+                                f'{disconnected_clients[dc]} has disconnected from the game.\n')
                     pid_to_name.pop(dc)
                     client_sockets.pop(dc)
 
@@ -206,10 +377,10 @@ def tcp_server(host, port):
 
                 next_round = f'Round {i}, played by '
                 next_round += ', '.join([pid_to_name[player] for player in client_sockets.keys()]) + ':'
-                print(next_round)
-                send_to_all(client_sockets, f'{next_round}\n')
+                # print(next_round)
+                # send_to_all(client_sockets, f'{next_round}\n')
                 i += 1
-                res = play(client_sockets, pid_to_name, question, curr_threads)
+                res = play(client_sockets, pid_to_name, question, curr_threads, next_round=next_round)
                 if res is True:
                     if len(pid_to_name) == 1:
                         break
@@ -228,8 +399,15 @@ def tcp_server(host, port):
             elif len(pid_to_name) == 1:
                 name = next(iter(pid_to_name.values()))
                 time.sleep(2)
-                print(f'Game over!\nCongratulations to the winner: {name}\n')
+                update_excel('winners.xlsx', name)
+                top_three_players = get_top_three_players('winners.xlsx')
+                print(f'Game over!\nCongratulations to the winner: {name}\n)All '
+                                                            f'Time Rankings \n {top_three_players}')
+
                 send_to_all(client_sockets_og, f'Game over!\nCongratulations to the winner: {name}\n')
+                time.sleep(0.5)
+                send_to_all(client_sockets_og,f'All Time Rankings\n{top_three_players}')
+                # play_sound('win_sound.wav')
                 time.sleep(2)
                 print("Game over, sending out offer requests...\n\n")
                 time.sleep(1)
@@ -239,37 +417,24 @@ def tcp_server(host, port):
         print("Shutting down the server... Goodbye!")
 
 
-# def tiebreaker(client_sockets, pid_to_name, curr_threads):
-#     question = "The capital of Israel is Ramat Efal"
-#     # a timer shown on the console to count down the time for the tiebreaker
-#     tiebreak_msg = "Tiebreaker round! The first player to answer correctly wins the game.\n"
-#     print(tiebreak_msg)
-#     send_to_all(client_sockets, f'{tiebreak_msg}\n')
-#     time.sleep(2)
-#     for i in range(5, 0, -1):
-#         print(f'Tiebreaker starting in {i} seconds...')
-#         send_to_all(client_sockets, f'Tiebreaker starting in {i} seconds...\n')
-#         time.sleep(1)
-#     res = play(client_sockets, pid_to_name, question, curr_threads, tiebreaker = True)
-#     if res is True:
-#     for i in range(5, 0, -1):
-#         print(f'Tiebreaker starting in {i} seconds...')
-#         time.sleep(1)
-
-
-def play(client_sockets, pid_to_name, question, curr_threads, tiebreaker = False):
+def play(client_sockets, pid_to_name, question, curr_threads, tiebreaker=False, next_round=""):
+    print(next_round)
+    send_to_all(client_sockets, f'{next_round}\n')
+    time.sleep(5)
     print(f"True or False: {question}\n")
     client_answers = {}
-    for client_id, sock in client_sockets.items():
-        t = threading.Thread(target=send_question, args=(client_id, sock, question))
-        t.start()
-        curr_threads.append(t)
-    for t in curr_threads:
-        t.join()
+    # for client_id, sock in client_sockets.items():
+    #     t = threading.Thread(target=send_question, args=(client_id, sock, question))
+    #     t.start()
+    #     curr_threads.append(t)
+    # for t in curr_threads:
+    #     t.join()
+    mess = str(f"True or False: {question}\n")
+    send_to_all(client_sockets, mess) # f"True or False: {question}\n")
     curr_threads = []
     for idx, client_id in enumerate(client_sockets):
         sock = client_sockets[client_id]
-        t = threading.Thread(target=play_trivia, args=(client_id,sock, idx, question, client_answers))
+        t = threading.Thread(target=play_trivia, args=(client_id, sock, idx, question, client_answers))
         t.start()
         curr_threads.append(t)
     for t in curr_threads:
@@ -296,6 +461,7 @@ def play(client_sockets, pid_to_name, question, curr_threads, tiebreaker = False
                 mess += f'{pid_to_name[player]} {client_answers[player]}\n'
 
     send_to_all(client_sockets, mess)
+    time.sleep(1)
 
     for player in client_answers.keys():
         if client_answers[player] != 'is correct!':
@@ -303,7 +469,7 @@ def play(client_sockets, pid_to_name, question, curr_threads, tiebreaker = False
             t.start()
             client_sockets.pop(player)
             pid_to_name.pop(player)
-
+            t.join()
 
 
 def check_if_disconnected(client_sockets, client_sockets_og, players):
@@ -323,7 +489,7 @@ def everyone_wrong_or_right(lst):
     return all([x != 'is correct!' for x in lst]) or all([x == 'is correct!' for x in lst])
 
 
-def safe_sendall(client_id,sock, message):
+def safe_sendall(client_id, sock, message):
     try:
         sock.sendall(message.encode())
     except (OSError, socket.timeout, ConnectionResetError, ConnectionAbortedError, BrokenPipeError) as e:
@@ -338,7 +504,7 @@ def send_to_all(list_of_sockets, msg):
         curr = None
         for client_id, sock in list_of_sockets.copy().items():
             curr = client_id
-            t = threading.Thread(target=lambda sockt, message: safe_sendall(client_id, sockt,msg), args=(sock, msg))
+            t = threading.Thread(target=lambda sockt, message: safe_sendall(client_id, sockt, msg), args=(sock, msg))
             t.start()
             curr_threads.append(t)
         for t in curr_threads:
@@ -357,15 +523,14 @@ def send_to_all(list_of_sockets, msg):
 
 def elimination_msg(conn, name):
     try:
-        conn.sendall(
-            f"Sorry {name}, you are out of the game!\nPlease wait for the final results.\n".encode())
-    except (OSError,socket.timeout, ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+        conn.sendall(f"Sorry {name}, you are out of the game!\nPlease wait for the final results.\n".encode())
+    except (OSError, socket.timeout, ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
         pass
 
 
 def send_question(client_id, conn, question):
     try:
-        conn.sendall(f"True or False: {question}\n".encode())
+        conn.sendall(f'True or False: {question}\n'.encode())
     except (OSError, socket.timeout, ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
         if client_id in pid_to_name:
             global disconnected_clients
@@ -375,6 +540,7 @@ def send_question(client_id, conn, question):
 def play_trivia(client_id, conn, idx, question, client_answers):
     global disconnected_clients
     try:
+        conn.settimeout(15)
         ans = conn.recv(1024).decode().strip().upper()
         if ans == "":
             disconnected_clients[client_id] = pid_to_name[client_id]
@@ -398,22 +564,16 @@ def play_trivia(client_id, conn, idx, question, client_answers):
 
 if __name__ == "__main__":
     # Start the server
-   try:
+    try:
         thread_a = threading.Thread(target=udp_broadcast)
-        thread_b = threading.Thread(target=tcp_server, args=(LOCAL_IP, 1710))
+        thread_b = threading.Thread(target=tcp_server, args=(LOCAL_IP, available_port, True, 0))
         # Start both threads
         thread_a.start()
         thread_b.start()
 
         thread_a.join()
         thread_b.join()
-   except KeyboardInterrupt:
-       pass
-   finally:
-       print("Server is shutting down...Goodbye!")
-
-
-
-# tcp_server(LOCAL_IP, 1710)
-# #
-# udp_broadcast()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        print("Server is shutting down...Goodbye!")
