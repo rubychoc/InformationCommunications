@@ -12,18 +12,3 @@ Trivia King is a multiplayer trivia game where players answer true or false ques
 - **Client-Server Architecture**: A server sends out offers via UDP messages, allowing clients to join the game and compete.
 - **Bot Support**: In case there are not enough human players, or if you want to add more challenge to the game, bots can be added to participate in the trivia.
 
-## Getting Started
-
-To start playing Trivia King, follow these steps:
-
-1. **Clone the Repository**: Clone this GitHub repository to your local machine.
-
-   ```bash
-   git clone https://github.com/your_username/trivia-king.git
-
-2. **Install Dependencies**: Install the required dependencies for both the server and client components. You may need Python and the `pygame` library installed on your system.
-   ```bash
-   pip install pygame
-   
-3. **Run the server, run the client**
-   Have fun !
