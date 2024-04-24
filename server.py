@@ -7,6 +7,11 @@ import sys
 import time
 import ipaddress
 import threading
+import warnings
+
+# Filter out the specific warning message
+warnings.filterwarnings("ignore", message="Your system is avx2 capable but pygame was not built with support for it.")
+
 import pygame
 
 from colorama import Fore
@@ -15,8 +20,49 @@ from Bot import Bot
 
 from openpyxl import load_workbook
 
+"""
+This script implements a server for the Trivia King game.
+
+The server communicates with clients over TCP/IP and broadcasts offers via UDP messages.
+Players can join the game by responding to the UDP broadcast and connecting to the server.
+The game consists of answering trivia questions about geography.
+
+The script includes the following functionalities:
+1. UDP Broadcast: The server broadcasts offers to potential clients using UDP messages.
+2. TCP Server: Manages client connections, handles game logic, and sends trivia questions to clients.
+3. Bot Support: Allows adding bots to the game in case there are not enough human players.
+
+The server uses the following external libraries:
+- colorama: for colored console output
+- pygame: for playing sounds
+- openpyxl: for updating and retrieving data from an Excel file to maintain player scores
+
+The server functions include:
+- udp_broadcast: Broadcasts server offers via UDP messages.
+- tcp_server: Manages client connections, handles game logic, and communicates with clients over TCP/IP.
+- play_sound: Plays a sound file.
+- update_excel: Updates an Excel file with player scores.
+- get_top_three_players: Retrieves the top three players from the Excel file.
+- pad_server_name: Pads the server name to a fixed length for broadcasting.
+- get_local_ipv4_address: Retrieves the local IPv4 address of the server.
+- find_available_port: Finds an available port for the server to bind to.
+- get_local_broadcast_ip: Retrieves the local broadcast IP address.
+- check_if_disconnected: Checks if any clients have disconnected.
+- everyone_wrong_or_right: Checks if all players either answered correctly or incorrectly.
+- safe_sendall: Safely sends a message to all clients, handling potential socket errors.
+- send_to_all: Sends a message to all clients.
+- elimination_msg: Sends an elimination message to a specific client.
+- send_question: Sends a trivia question to a specific client.
+- play_trivia: Manages the trivia game for a specific client.
+"""
+
 
 def play_sound(sound_file):
+    """
+    Play a sound file.
+    :param sound_file:
+    :return:
+    """
     pygame.mixer.init()
     sound = pygame.mixer.Sound(sound_file)
     sound.play()
@@ -109,12 +155,20 @@ def pad_server_name(server_name):
 
 
 def get_local_ipv4_address():
+    """
+    Get the local IPv4 address of the server.
+    :return:
+    """
     # Get the local hostname
     temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     temp_sock.connect(("8.8.8.8", 80))
     return temp_sock.getsockname()[0]
 
 def find_available_port():
+    """
+    Find an available port for the server to bind to.
+    :return:
+    """
     # Create a socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         # Bind the socket to a random port
@@ -130,6 +184,10 @@ server_name = pad_server_name("Lucky Bunnies")
 available_port = find_available_port()
 
 def get_local_broadcast_ip():
+    """
+    Get the local broadcast IP address.
+    :return: broadcast address of the network
+    """
     # Get the local IP address
     ip = LOCAL_IP
     # Get the local network mask
@@ -140,6 +198,13 @@ def get_local_broadcast_ip():
 
 
 def udp_broadcast():
+    """
+        Broadcasts server offers via UDP messages.
+
+        The function broadcasts offers containing the server name and port to potential clients.
+        It uses a UDP socket to send messages to the local broadcast IP address.
+
+        """
     BROADCAST_IP = get_local_broadcast_ip()
     BROADCAST_PORT = 13117
     server_port = available_port
@@ -163,13 +228,6 @@ def udp_broadcast():
     except OSError:
         sock.close()
 
-#
-#
-# questions = {
-#     "Aston Villa's current manager is Pep Guardiola": True,
-#     "Aston Villa's home stadium is Villa Park": True,
-#     "Aston Villa has won the UEFA Champions League": False,
-# }
 
 questions = {
     "The capital city of Japan is Tokyo": True,
@@ -223,12 +281,35 @@ pid_to_name = {}
 
 
 def tcp_server(host, port, fill_bots=True, add_bots=0):
+    """
+     Manages client connections, handles game logic, and communicates with clients over TCP/IP.
+
+     The function listens for incoming client connections and creates a new thread for each client.
+     It handles game logic, including sending trivia questions, receiving answers, and managing player eliminations.
+     Bots can be added to the game automatically if there are not enough human players.
+
+     Args:
+     - host (str): The IP address of the server.
+     - port (int): The port number to bind the server socket.
+     - fill_bots (bool): Whether to add bots to the game if there are not enough human players (default=True).
+     - add_bots (int): The number of additional bots to add to the game (default=0).
+
+     Returns:
+     None
+     """
     global pid_to_name
     global disconnected_clients
     welcome_msg = "Please wait for other players to join...\n"
 
     # Function to send welcome message to all the clients
     def handle_client(client_id, client_socket, players):
+        """
+        Handles client connections and game logic for each client.
+        :param client_id: id of the client joining
+        :param client_socket: socket of the client joining
+        :param players: dict of players
+        :return:
+        """
         try:
             player_name = client_socket.recv(1024)
             client_socket.sendall(welcome_msg.encode())
@@ -295,10 +376,7 @@ def tcp_server(host, port, fill_bots=True, add_bots=0):
                     break
 
             client_sockets = dict(client_sockets_og)
-            # client_sockets = copy.deepcopy(client_sockets_og)
-
             time.sleep(1)
-
             check_if_disconnected(client_sockets, client_sockets_og, players)
 
             if len(client_sockets) == 0:
@@ -361,6 +439,7 @@ def tcp_server(host, port, fill_bots=True, add_bots=0):
             # Start the game: send questions to all the clients and wait for their answers
             i = 1
             for question in questions:
+                # check if any clients have disconnected
                 for dc in disconnected_clients:
                     print(f'{disconnected_clients[dc]} has disconnected from the game.')
                     send_to_all(client_sockets,
@@ -401,13 +480,13 @@ def tcp_server(host, port, fill_bots=True, add_bots=0):
                 time.sleep(2)
                 update_excel('winners.xlsx', name)
                 top_three_players = get_top_three_players('winners.xlsx')
-                print(f'Game over!\nCongratulations to the winner: {name}\n)All '
-                                                            f'Time Rankings \n {top_three_players}')
-
-                send_to_all(client_sockets_og, f'Game over!\nCongratulations to the winner: {name}\n')
-                time.sleep(0.5)
-                send_to_all(client_sockets_og,f'All Time Rankings\n{top_three_players}')
-                # play_sound('win_sound.wav')
+                game_over_mess = f'Game over!\nCongratulations to the winner: {name}\nAll Time Server Rankings:\n'
+                i = 1
+                for player in top_three_players:
+                    game_over_mess += f'{i}. {player[0]}: {player[1]}\n'
+                    i += 1
+                print(game_over_mess)
+                send_to_all(client_sockets_og, game_over_mess)
                 time.sleep(2)
                 print("Game over, sending out offer requests...\n\n")
                 time.sleep(1)
@@ -417,7 +496,24 @@ def tcp_server(host, port, fill_bots=True, add_bots=0):
         print("Shutting down the server... Goodbye!")
 
 
-def play(client_sockets, pid_to_name, question, curr_threads, tiebreaker=False, next_round=""):
+def play(client_sockets, pid_to_name, question, curr_threads, next_round=""):
+    """
+        Manages a round of the trivia game.
+
+        The function sends the trivia question to all clients, waits for their answers,
+        determines the correctness of each answer, and handles player eliminations.
+
+        Args:
+        - client_sockets (dict): A dictionary containing client IDs and their corresponding sockets.
+        - pid_to_name (dict): A dictionary mapping player IDs to their names.
+        - question (str): The trivia question to be asked.
+        - curr_threads (list): A list of current active threads.
+        - next_round (str): Information about the next round (default="").
+
+        Returns:
+        True if no players are eliminated in the round.
+        """
+
     print(next_round)
     send_to_all(client_sockets, f'{next_round}\n')
     time.sleep(5)
@@ -434,7 +530,7 @@ def play(client_sockets, pid_to_name, question, curr_threads, tiebreaker=False, 
     curr_threads = []
     for idx, client_id in enumerate(client_sockets):
         sock = client_sockets[client_id]
-        t = threading.Thread(target=play_trivia, args=(client_id, sock, idx, question, client_answers))
+        t = threading.Thread(target=play_trivia, args=(client_id, sock, question, client_answers))
         t.start()
         curr_threads.append(t)
     for t in curr_threads:
@@ -473,6 +569,13 @@ def play(client_sockets, pid_to_name, question, curr_threads, tiebreaker=False, 
 
 
 def check_if_disconnected(client_sockets, client_sockets_og, players):
+    """
+    Checks if any clients have disconnected from the server.
+    :param client_sockets: dict of client sockets still active in the game
+    :param client_sockets_og: dict of client socket, original client socket pairs
+    :param players: players in the game
+    :return:
+    """
     for client_id, sock in client_sockets.copy().items():
         try:
             # Check if the socket is still connected
@@ -486,10 +589,22 @@ def check_if_disconnected(client_sockets, client_sockets_og, players):
 
 
 def everyone_wrong_or_right(lst):
+    """
+    Checks if everyone in the list is either all correct or all wrong.
+    :param lst: list of client answers
+    :return: True if everyone is either all correct or all wrong, False otherwise
+    """
     return all([x != 'is correct!' for x in lst]) or all([x == 'is correct!' for x in lst])
 
 
 def safe_sendall(client_id, sock, message):
+    """
+    Safely sends a message to a client.
+    :param client_id: client id
+    :param sock: socket to send message to
+    :param message: message to send
+    :return:
+    """
     try:
         sock.sendall(message.encode())
     except (OSError, socket.timeout, ConnectionResetError, ConnectionAbortedError, BrokenPipeError) as e:
@@ -499,6 +614,12 @@ def safe_sendall(client_id, sock, message):
 
 
 def send_to_all(list_of_sockets, msg):
+    """
+    Sends a message to all clients.
+    :param list_of_sockets: list of sockets to send a message to
+    :param msg: message to send
+    :return:
+    """
     try:
         curr_threads = []
         curr = None
@@ -515,13 +636,13 @@ def send_to_all(list_of_sockets, msg):
             disconnected_clients[curr] = pid_to_name[curr]
 
 
-# def gameover_msg(conn, name):
-#     try:
-#         conn.sendall(f'Game over!\nCongratulations to the winner: {name}'.encode())
-#     except (OSError, socket.timeout, ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
-#         pass
-
 def elimination_msg(conn, name):
+    """
+    Sends an elimination message to a client.
+    :param conn: socket connection
+    :param name: name of the client
+    :return:
+    """
     try:
         conn.sendall(f"Sorry {name}, you are out of the game!\nPlease wait for the final results.\n".encode())
     except (OSError, socket.timeout, ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
@@ -529,6 +650,13 @@ def elimination_msg(conn, name):
 
 
 def send_question(client_id, conn, question):
+    """
+    Sends a question to a client.
+    :param client_id: client id
+    :param conn: socket connection
+    :param question: question to send
+    :return:
+    """
     try:
         conn.sendall(f'True or False: {question}\n'.encode())
     except (OSError, socket.timeout, ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
@@ -537,7 +665,15 @@ def send_question(client_id, conn, question):
             disconnected_clients[client_id] = pid_to_name[client_id]
 
 
-def play_trivia(client_id, conn, idx, question, client_answers):
+def play_trivia(client_id, conn, question, client_answers):
+    """
+    Plays the trivia game with a client. Receives the client's answer and checks if it is correct.
+    :param client_id: client id
+    :param conn: socket connection
+    :param question: question in the trivia game
+    :param client_answers: dictionary of client answers
+    :return:
+    """
     global disconnected_clients
     try:
         conn.settimeout(15)
@@ -566,7 +702,7 @@ if __name__ == "__main__":
     # Start the server
     try:
         thread_a = threading.Thread(target=udp_broadcast)
-        thread_b = threading.Thread(target=tcp_server, args=(LOCAL_IP, available_port, True, 0))
+        thread_b = threading.Thread(target=tcp_server, args=(LOCAL_IP, available_port, False, 2))
         # Start both threads
         thread_a.start()
         thread_b.start()

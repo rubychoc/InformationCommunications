@@ -8,13 +8,30 @@ from client import Client
 
 
 def get_local_ipv4_address():
+    """
+        Get the local IPv4 address of the machine.
+
+        :return: The local IPv4 address.
+        """
     # Get the local hostname
     temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     temp_sock.connect(("8.8.8.8", 80))
     return temp_sock.getsockname()[0]
 
 class Bot(Client):
+    """
+        A class representing a bot client for the networking game. The bot acts exactly like a normal client,
+        but answers questions randomly.
+        """
     def __init__(self, name, address, server_port, isBot=False):
+        """
+                Initialize the Bot object.
+
+                :param name: The name of the bot.
+                :param address: The IP address of the server.
+                :param server_port: The port number of the server.
+                :param isBot: Boolean indicating whether the client is a bot.
+                """
         super().__init__(name)
         self.name = name
         self.address = address
@@ -23,43 +40,23 @@ class Bot(Client):
         self.isBot = isBot
 
     def answering_questions(self, client_socket):
+        """
+                Answer questions asked by the server.
+
+                :param client_socket: The TCP socket connected to the server.
+                """
         answer = random.choice(
             ['0', '1'])  # Randomly choose from the options
         print(f"{self.name} answered {answer}\n")
         client_socket.sendall(answer.encode())
 
     def run(self):
-        con = False
+        """
+                Run the bot .
+                """
         if not self.isBot:
             print(Fore.YELLOW + f'{self.name} started, connecting to server...\n')
         while not self.disconnect:
             self.tcp_client(self.address, self.server_port, isBot=self.isBot)
 
 
-# if __name__ == "__main__":
-#     bot_names = [
-#         "BOT_columbus",
-#         "BOT_magellan",
-#         "BOT_cook",
-#         "BOT_vespucci",
-#         "BOT_hudson",
-#         "BOT_cabot",
-#         "BOT_drake",
-#         "BOT_marco_polo",
-#         "BOT_champlain",
-#         "BOT_cortes",
-#         "BOT_pizarro",
-#         "BOT_cartier",
-#         "BOT_la_salle",
-#         "BOT_park",
-#         "BOT_livingstone",
-#         "BOT_vasco_da_gama",
-#         "BOT_pedro_alvares_cabral",
-#         "BOT_zheng_he",
-#         "BOT_meriwether_lewis",
-#         "BOT_william_clark"
-#     ]
-#     # # port = server.available_port
-#     # bot_name = random.choice(bot_names)
-#     # bot = Bot(bot_name, address=get_local_ipv4_address(), server_port=port)
-#     # bot.run()
